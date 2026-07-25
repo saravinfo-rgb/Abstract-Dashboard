@@ -1,0 +1,28 @@
+{
+    "DC": {
+        "abstract_reviewed": false,
+        "corrections_applied": false,
+        "sample_checked": false,
+        "xml_validated": false,
+        "notes": ""
+    },
+    "QC": {
+        "abstract_reviewed": false,
+        "corrections_applied": false,
+        "final_approved": false,
+        "xml_validated": false,
+        "notes": ""
+    },
+    "Pagination": {
+        "page_numbers_verified": false,
+        "corrections_applied": false,
+        "final_approved": false,
+        "notes": ""
+    },
+    "Online": {
+        "online_link_verified": false,
+        "final_approved": false,
+        "xml_validated": false,
+        "notes": ""
+    }
+}

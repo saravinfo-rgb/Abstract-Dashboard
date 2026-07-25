@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JID Management Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif; }
+        body { background: #f0f2f5; height: 100vh; display: flex; }
+        
+        /* Sidebar */
+        .sidebar { width: 300px; background: white; padding: 20px; border-right: 1px solid #e2e8f0; overflow-y: auto; display: flex; flex-direction: column; }
+        .sidebar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .sidebar-header h2 { font-size: 20px; color: #1a1a2e; }
+        .btn-primary { background: #1a1a2e; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+        .btn-primary:hover { background: #2d2d44; }
+        .btn-danger { background: #ef4444; color: white; border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+        .btn-danger:hover { background: #dc2626; }
+        .btn-success { background: #22c55e; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+        .btn-success:hover { background: #16a34a; }
+        
+        .jid-item { padding: 12px 16px; margin-bottom: 6px; border-radius: 8px; cursor: pointer; transition: all 0.2s; border-left: 3px solid transparent; }
+        .jid-item:hover { background: #f1f5f9; }
+        .jid-item.active { background: #1a1a2e; color: white; border-left-color: #22c55e; }
+        .jid-item .jid-name { font-weight: 500; }
+        .jid-item .jid-meta { font-size: 12px; color: #94a3b8; margin-top: 4px; }
+        .jid-item.active .jid-meta { color: #cbd5e1; }
+        .jid-item .progress-bar { height: 4px; background: #e2e8f0; border-radius: 2px; margin-top: 6px; overflow: hidden; }
+        .jid-item .progress-bar .progress-fill { height: 100%; background: #22c55e; transition: width 0.3s; }
+        .jid-item .status-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; margin-left: 8px; }
+        .status-complete { background: #dcfce7; color: #166534; }
+        .status-progress { background: #fef3c7; color: #92400e; }
+        .status-pending { background: #fee2e2; color: #991b1b; }
+        
+        /* Main Content */
+        .main { flex: 1; padding: 24px; overflow-y: auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .header h1 { font-size: 24px; color: #1a1a2e; }
+        .header .subtitle { font-size: 14px; color: #94a3b8; }
+        
+        /* Tabs */
+        .tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 2px solid #e2e8f0; }
+        .tab { padding: 10px 20px; cursor: pointer; border: none; background: none; font-size: 14px; color: #64748b; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+        .tab.active { color: #1a1a2e; border-bottom-color: #1a1a2e; font-weight: 500; }
+        .tab:hover { color: #1a1a2e; }
+        
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        
+        /* Files Grid */
+        .files-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin: 16px 0; }
+        .file-card { background: white; padding: 16px; border-radius: 8px; border: 1px solid #e2e8f0; position: relative; }
+        .file-card .file-icon { font-size: 32px; margin-bottom: 8px; }
+        .file-card .file-name { font-size: 14px; font-weight: 500; word-break: break-all; }
+        .file-card .file-meta { font-size: 12px; color: #94a3b8; margin-top: 4px; }
+        .file-card .file-actions { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+        .file-card .file-actions button { padding: 4px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; }
+        .btn-view { background: #e2e8f0; color: #1a1a2e; }
+        .btn-view:hover { background: #cbd5e1; }
+        .btn-download { background: #dbeafe; color: #1e40af; }
+        .btn-download:hover { background: #bfdbfe; }
+        .btn-delete { background: #fee2e2; color: #991b1b; }
+        .btn-delete:hover { background: #fecaca; }
+        
+        /* Upload Area */
+        .upload-area { border: 2px dashed #e2e8f0; border-radius: 8px; padding: 40px; text-align: center; background: #fafbfc; margin: 16px 0; transition: all 0.3s; }
+        .upload-area.dragover { border-color: #1a1a2e; background: #f1f5f9; }
+        .upload-area .upload-icon { font-size: 48px; color: #94a3b8; }
+        .upload-area .upload-text { margin-top: 12px; color: #64748b; }
+        .upload-area .upload-btn { margin-top: 12px; }
+        .upload-area input[type="file"] { display: none; }
+        
+        /* PDF Viewer */
+        .pdf-container { background: white; border-radius: 8px; padding: 16px; margin: 16px 0; border: 1px solid #e2e8f0; }
+        .pdf-container iframe { width: 100%; height: 600px; border: none; border-radius: 4px; }
+        
+        /* Checklist */
+        .checklist { background: white; border-radius: 8px; padding: 20px; border: 1px solid #e2e8f0; margin: 16px 0; }
+        .checklist-item { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid #f1f5f9; }
+        .checklist-item:last-child { border-bottom: none; }
+        .checklist-item input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; }
+        .checklist-item .item-label { flex: 1; font-size: 14px; }
+        .checklist-item .item-status { font-size: 12px; color: #94a3b8; }
+        .checklist-progress { margin: 12px 0; }
+        .checklist-progress .progress-bar { height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden; }
+        .checklist-progress .progress-fill { height: 100%; background: #22c55e; transition: width 0.3s; }
+        .checklist-progress .progress-text { font-size: 14px; color: #64748b; margin-top: 4px; }
+        
+        /* Modal */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
+        .modal.active { display: flex; }
+        .modal-content { background: white; border-radius: 12px; padding: 30px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .modal-header h3 { font-size: 18px; color: #1a1a2e; }
+        .modal-close { background: none; border: none; font-size: 24px; cursor: pointer; color: #94a3b8; }
+        .modal-close:hover { color: #1a1a2e; }
+        .modal form .form-group { margin-bottom: 16px; }
+        .modal form label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 4px; color: #1a1a2e; }
+        .modal form input[type="text"], .modal form select { width: 100%; padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 14px; }
+        .modal form input[type="file"] { width: 100%; padding: 8px 0; }
+        
+        .toast { position: fixed; bottom: 20px; right: 20px; background: #1a1a2e; color: white; padding: 16px 24px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); z-index: 2000; animation: slideIn 0.3s ease; }
+        .toast.success { background: #16a34a; }
+        .toast.error { background: #dc2626; }
+        .toast.info { background: #2563eb; }
+        @keyframes slideIn { from { transform: translateY(100px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        
+        .empty-state { text-align: center; color: #94a3b8; padding: 40px; }
+        .empty-state .icon { font-size: 64px; margin-bottom: 16px; }
+    </style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<div class="sidebar">
+    <div class="sidebar-header">
+        <h2>📁 JID Management</h2>
+        <button class="btn-primary" onclick="showCreateJIDModal()">+ New</button>
+    </div>
+    <div id="jidList" style="flex: 1; overflow-y: auto;"></div>
+</div>
+
+<!-- Main Content -->
+<div class="main">
+    <div class="header">
+        <div>
+            <h1 id="jidTitle">Select a JID to begin</h1>
+            <div class="subtitle" id="jidSubtitle">Choose a JID from the sidebar to view details</div>
+        </div>
+        <div>
+            <button class="btn-success" onclick="showUploadModal()" id="uploadBtn" style="display: none;">📤 Upload Files</button>
+        </div>
+    </div>
+    
+    <!-- Tabs -->
+    <div class="tabs">
+        <button class="tab active" onclick="switchTab('files')">📄 Files</button>
+        <button class="tab" onclick="switchTab('pdf')">📑 PDF Viewer</button>
+        <button class="tab" onclick="switchTab('checklist')">✅ Checklist</button>
+    </div>
+    
+    <!-- Files Tab -->
+    <div class="tab-content active" id="tab-files">
+        <div id="filesContainer">
+            <div class="empty-state">
+                <div class="icon">📂</div>
+                <p>No JID selected. Select a JID from the sidebar.</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- PDF Viewer Tab -->
+    <div class="tab-content" id="tab-pdf">
+        <div id="pdfContainer">
+            <div class="empty-state">
+                <div class="icon">📄</div>
+                <p>Select a JID to view PDFs</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Checklist Tab -->
+    <div class="tab-content" id="tab-checklist">
+        <div id="checklistContainer">
+            <div class="empty-state">
+                <div class="icon">✅</div>
+                <p>Select a JID to view checklist</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create JID Modal -->
+<div class="modal" id="createJIDModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Create New JID</h3>
+            <button class="modal-close" onclick="closeModal('createJIDModal')">&times;</button>
+        </div>
+        <form onsubmit="createJID(event)">
+            <div class="form-group">
+                <label>JID Name</label>
+                <input type="text" id="newJIDName" placeholder="e.g., JID-127" required>
+            </div>
+            <button type="submit" class="btn-primary" style="width:100%;">Create JID</button>
+        </form>
+    </div>
+</div>
+
+<!-- Upload Modal -->
+<div class="modal" id="uploadModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>📤 Upload Files</h3>
+            <button class="modal-close" onclick="closeModal('uploadModal')">&times;</button>
+        </div>
+        <form onsubmit="uploadFile(event)">
+            <div class="form-group">
+                <label>File Type</label>
+                <select id="fileType" required>
+                    <option value="correction">Correction PDF</option>
+                    <option value="sample">Sample PDF</option>
+                    <option value="final_pdf">Final PDF</option>
+                    <option value="final_xml">Final XML</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Select File</label>
+                <input type="file" id="fileInput" accept=".pdf,.xml,.txt" required>
+            </div>
+            <button type="submit" class="btn-success" style="width:100%;">Upload</button>
+        </form>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div id="toastContainer"></div>
+
+<script>
+// ===== STATE =====
+let currentJIDId = null;
+let currentJIDName = null;
+let allJIDs = [];
+
+// ===== API CALLS =====
+const API_BASE = 'http://localhost:5000/api';
+
+async function apiCall(endpoint, options = {}) {
+    try {
+        const response = await fetch(`${API_BASE}${endpoint}`, {
+            ...options,
+            headers: {
+                'Content-Type': 'application/json',
+                ...options.headers
+            }
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'API call failed');
+        return data;
+    } catch (error) {
+        showToast(error.message, 'error');
+        throw error;
+    }
+}
+
+// ===== LOAD JIDS =====
+async function loadJIDs() {
+    try {
+        allJIDs = await apiCall('/jids');
+        renderJIDList();
+        if (allJIDs.length > 0 && !currentJIDId) {
+            selectJID(allJIDs[0].id);
+        }
+    } catch (error) {
+        console.error('Failed to load JIDs:', error);
+    }
+}
+
+// ===== RENDER JID LIST =====
+function renderJIDList() {
+    const container = document.getElementById('jidList');
+    container.innerHTML = allJIDs.map(jid => {
+        const statusClass = jid.checklist_progress === 100 ? 'status-complete' : 
+                           jid.checklist_progress > 0 ? 'status-progress' : 'status-pending';
+        const statusText = jid.checklist_progress === 100 ? 'Complete' : 
+                          jid.checklist_progress > 0 ? 'In Progress' : 'Pending';
+        
+        return `
+            <div class="jid-item ${jid.id === currentJIDId ? 'active' : ''}" onclick="selectJID(${jid.id})">
+                <div>
+                    <span class="jid-name">${jid.jid_name}</span>
+                    <span class="status-badge ${statusClass}">${statusText}</span>
+                </div>
+                <div class="jid-meta">
+                    📄 ${jid.file_count || 0} files • ${jid.checklist_progress || 0}% complete
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: ${jid.checklist_progress || 0}%"></div>
+                </div>
+                <div class="jid-meta" style="margin-top:4px;">
+                    ${jid.last_updated ? `Updated: ${new Date(jid.last_updated).toLocaleDateString()}` : 'No updates'}
+                    <button class="btn-danger" style="float:right;" onclick="event.stopPropagation(); deleteJID(${jid.id})">Delete</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// ===== SELECT JID =====
+async function selectJID(jidId) {
+    currentJIDId = jidId;
+    const jid = allJIDs.find(j => j.id === jidId);
+    if (!jid) return;
+    
+    currentJIDName = jid.jid_name;
+    
+    // Update UI
+    document.getElementById('jidTitle').textContent = `📑 ${jid.jid_name}`;
+    document.getElementById('jidSubtitle').textContent = `${jid.file_count || 0} files • ${jid.checklist_progress || 0}% complete`;
+    document.getElementById('uploadBtn').style.display = 'inline-block';
+    
+    // Update sidebar
+    document.querySelectorAll('.jid-item').forEach(el => el.classList.remove('active'));
+    document.querySelector(`.jid-item[onclick*="selectJID(${jidId})"]`)?.classList.add('active');
+    
+    // Load data
+    await loadFiles(jidId);
+    await loadChecklist(jidId);
+    await loadPDF(jidId);
+}
+
+// ===== LOAD FILES =====
+async function loadFiles(jidId) {
+    try {
+        const files = await apiCall(`/files/${jidId}`);
+        renderFiles(files);
+    } catch (error) {
+        console.error('Failed to load files:', error);
+    }
+}
+
+function renderFiles(files) {
+    const container = document.getElementById('filesContainer');
+    
+    if (!files || files.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <div class="icon">📂</div>
+                <p>No files uploaded for this JID</p>
+                <button class="btn-primary" onclick="showUploadModal()" style="margin-top:12px;">Upload Files</button>
+            </div>
+        `;
+        return;
+    }
+    
+    const fileTypes = {
+        'correction': { icon: '📄', label: 'Correction PDF' },
+        'sample': { icon: '📄', label: 'Sample PDF' },
+        'final_pdf': { icon: '📄', label: 'Final PDF' },
+        'final_xml': { icon: '📋', label: 'Final XML' }
+    };
+    
+    container.innerHTML = `
+        <div class="files-grid">
+            ${files.map(file => {
+                const info = fileTypes[file.file_type] || { icon: '📄', label: file.file_type };
+                return `
+                    <div class="file-card">
+                        <div class="file-icon">${info.icon}</div>
+                        <div class="file-name">${file.filename}</div>
+                        <div class="file-meta">v${file.version} • ${new Date(file.uploaded_at).toLocaleDateString()}</div>
+                        <div class="file-actions">
+                            <button class="btn-view" onclick="viewPDFFile(${file.id})">View</button>
+                            <button class="btn-download" onclick="downloadFile(${file.id})">Download</button>
+                            <button class="btn-delete" onclick="deleteFile(${file.id})">Delete</button>
+                        </div>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+        <div style="text-align:center;margin-top:16px;">
+            <button class="btn-success" onclick="showUploadModal()">📤 Upload More Files</button>
+        </div>
+    `;
+}
+
+// ===== LOAD PDF =====
+async function loadPDF(jidId) {
+    try {
+        const files = await apiCall(`/files/${jidId}`);
+        const pdfFile = files.find(f => f.file_type === 'correction' || f.file_type === 'final_pdf' || f.file_type === 'sample');
+        
+        const container = document.getElementById('pdfContainer');
+        if (pdfFile) {
+            container.innerHTML = `
+                <div class="pdf-container">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                        <span><strong>${pdfFile.filename}</strong> (v${pdfFile.version})</span>
+                        <button class="btn-download" onclick="downloadFile(${pdfFile.id})">Download</button>
+                    </div>
+                    <iframe src="${API_BASE}/files/download/${pdfFile.id}" style="width:100%;height:600px;border:none;border-radius:4px;"></iframe>
+                </div>
+            `;
+        } else {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <div class="icon">📄</div>
+                    <p>No PDF files available for this JID</p>
+                    <button class="btn-primary" onclick="showUploadModal()" style="margin-top:12px;">Upload a PDF</button>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Failed to load PDF:', error);
+    }
+}
+
+function viewPDFFile(fileId) {
+    window.open(`${API_BASE}/files/download/${fileId}`, '_blank');
+}
+
+// ===== DOWNLOAD FILE =====
+function downloadFile(fileId) {
+    window.open(`${API_BASE}/files/download/${fileId}`, '_blank');
+}
+
+// ===== DELETE FILE =====
+async function deleteFile(fileId) {
+    if (!confirm('Are you sure you want to delete this file?')) return;
+    
+    try {
+        await apiCall(`/files/${fileId}`, { method: 'DELETE' });
+        showToast('File deleted successfully', 'success');
+        if (currentJIDId) {
+            await loadFiles(currentJIDId);
+            await loadPDF(currentJIDId);
+        }
+    } catch (error) {
+        console.error('Failed to delete file:', error);
+    }
+}
+
+// ===== LOAD CHECKLIST =====
+async function loadChecklist(jidId) {
+    try {
+        const checklist = await apiCall(`/checklist/${jidId}`);
+        renderChecklist(checklist);
+    } catch (error) {
+        console.error('Failed to load checklist:', error);
+    }
+}
+
+function renderChecklist(checklist) {
+    const container = document.getElementById('checklistContainer');
+    
+    if (!checklist || checklist.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <div class="icon">✅</div>
+                <p>No checklist items found</p>
+            </div>
+        `;
+        return;
+    }
+    
+    const total = checklist.length;
+    const done = checklist.filter(item => item.is_checked).length;
+    const progress = (done / total * 100);
+    
+    container.innerHTML = `
+        <div class="checklist">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                <h3 style="font-size:18px;">✅ Checklist</h3>
+                <button class="btn-danger" onclick="resetChecklist()">Reset All</button>
+            </div>
+            <div class="checklist-progress">
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: ${progress}%"></div>
+                </div>
+                <div class="progress-text">${done} of ${total} items completed (${Math.round(progress)}%)</div>
+            </div>
+            ${checklist.map(item => `
+                <div class="checklist-item">
+                    <input type="checkbox" ${item.is_checked ? 'checked' : ''} 
+                           onchange="updateChecklist('${item.item_key}', this.checked)">
+                    <span class="item-label">${item.item_label}</span>
+                    <span class="item-status">${item.is_checked ? '✅ Done' : '⏳ Pending'}</span>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+// ===== UPDATE CHECKLIST =====
+async function updateChecklist(itemKey, isChecked) {
+    try {
+        await apiCall(`/checklist/${currentJIDId}/${itemKey}`, {
+            method: 'PUT',
+            body: JSON.stringify({ is_checked: isChecked })
+        });
+        showToast('Checklist updated', 'success');
+        await loadChecklist(currentJIDId);
+        await loadJIDs(); // Refresh sidebar
+    } catch (error) {
+        console.error('Failed to update checklist:', error);
+    }
+}
+
+async function resetChecklist() {
+    if (!confirm('Are you sure you want to reset all checklist items?')) return;
+    
+    try {
+        await apiCall(`/checklist/${currentJIDId}/reset`, { method: 'POST' });
+        showToast('Checklist reset', 'success');
+        await loadChecklist(currentJIDId);
+        await loadJIDs();
+    } catch (error) {
+        console.error('Failed to reset checklist:', error);
+    }
+}
+
+// ===== UPLOAD FILE =====
+async function uploadFile(event) {
+    event.preventDefault();
+    
+    const fileType = document.getElementById('fileType').value;
+    const fileInput = document.getElementById('fileInput');
+    const file = fileInput.files[0];
+    
+    if (!file) {
+        showToast('Please select a file', 'error');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('file_type', fileType);
+    formData.append('file', file);
+    
+    try {
+        const response = await fetch(`${API_BASE}/upload/${currentJIDId}`, {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Upload failed');
+        
+        showToast('File uploaded successfully', 'success');
+        closeModal('uploadModal');
+        document.getElementById('fileInput').value = '';
+        
+        // Refresh data
+        await loadFiles(currentJIDId);
+        await loadPDF(currentJIDId);
+        await loadJIDs();
+    } catch (error) {
+        showToast(error.message, 'error');
+    }
+}
+
+// ===== CREATE JID =====
+async function createJID(event) {
+    event.preventDefault();
+    const name = document.getElementById('newJIDName').value.trim();
+    
+    if (!name) {
+        showToast('Please enter a JID name', 'error');
+        return;
+    }
+    
+    try {
+        const data = await apiCall('/jids', {
+            method: 'POST',
+            body: JSON.stringify({ jid_name: name })
+        });
+        
+        showToast('JID created successfully', 'success');
+        closeModal('createJIDModal');
+        document.getElementById('newJIDName').value = '';
+        await loadJIDs();
+        selectJID(data.id);
+    } catch (error) {
+        showToast(error.message, 'error');
+    }
+}
+
+// ===== DELETE JID =====
+async function deleteJID(jidId) {
+    if (!confirm('Are you sure you want to delete this JID and all its files?')) return;
+    
+    try {
+        await apiCall(`/jids/${jidId}`, { method: 'DELETE' });
+        showToast('JID deleted successfully', 'success');
+        if (currentJIDId === jidId) {
+            currentJIDId = null;
+            currentJIDName = null;
+            document.getElementById('jidTitle').textContent = 'Select a JID to begin';
+            document.getElementById('jidSubtitle').textContent = 'Choose a JID from the sidebar to view details';
+            document.getElementById('uploadBtn').style.display = 'none';
+            document.getElementById('filesContainer').innerHTML = '<div class="empty-state"><div class="icon">📂</div><p>No JID selected</p></div>';
+            document.getElementById('pdfContainer').innerHTML = '<div class="empty-state"><div class="icon">📄</div><p>No JID selected</p></div>';
+            document.getElementById('checklistContainer').innerHTML = '<div class="empty-state"><div class="icon">✅</div><p>No JID selected</p></div>';
+        }
+        await loadJIDs();
+    } catch (error) {
+        showToast(error.message, 'error');
+    }
+}
+
+// ===== UI HELPERS =====
+function showCreateJIDModal() {
+    document.getElementById('createJIDModal').classList.add('active');
+}
+
+function showUploadModal() {
+    if (!currentJIDId) {
+        showToast('Please select a JID first', 'error');
+        return;
+    }
+    document.getElementById('uploadModal').classList.add('active');
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).classList.remove('active');
+}
+
+function switchTab(tabName) {
+    // Update tab buttons
+    document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+    document.querySelector(`.tab[onclick*="${tabName}"]`)?.classList.add('active');
+    
+    // Update tab content
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+    document.getElementById(`tab-${tabName}`).classList.add('active');
+}
+
+function showToast(message, type = 'info') {
+    const container = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.textContent = message;
+    container.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.remove();
+    }, 3000);
+}
+
+// ===== CLOSE MODALS ON CLICK OUTSIDE =====
+document.querySelectorAll('.modal').forEach(modal => {
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.classList.remove('active');
+        }
+    });
+});
+
+// ===== INIT =====
+loadJIDs();
+</script>
+</body>
+</html>
