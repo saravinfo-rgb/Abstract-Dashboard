@@ -3,7 +3,4 @@ flask-cors
 psycopg2-binary
 werkzeug
 gunicorn
-<<<<<<< HEAD
 python-dotenv
-=======
->>>>>>> 63edfcaebc19798646b9f69bd786feee81dceafd
