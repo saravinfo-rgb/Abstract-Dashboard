@@ -764,7 +764,6 @@ if __name__ == '__main__':
     
     # On Render, we need to listen on 0.0.0.0
     app.run(debug=False, host='0.0.0.0', port=port)
-=======
 from flask import Flask, request, jsonify, send_file, send_from_directory, session, redirect, url_for, render_template_string
 from flask_cors import CORS
 import psycopg2
