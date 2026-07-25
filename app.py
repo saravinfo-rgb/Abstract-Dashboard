@@ -127,6 +127,162 @@ def save_file(file, jid_code, stage_name, file_type):
     file.save(file_path)
     return file_path
 
+# ===== DATABASE SETUP ROUTE =====
+@app.route('/setup-db')
+def setup_db():
+    """Complete database setup - creates all tables"""
+    conn = get_db_connection()
+    if not conn:
+        return "❌ Database connection failed!"
+    
+    try:
+        with conn.cursor() as cur:
+            # ===== CREATE ALL TABLES =====
+            
+            # 1. Create stages table
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS stages (
+                    id SERIAL PRIMARY KEY,
+                    stage_name VARCHAR(50) UNIQUE NOT NULL,
+                    description TEXT,
+                    sort_order INTEGER DEFAULT 0
+                )
+            """)
+            
+            # 2. Create jids table
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS jids (
+                    id SERIAL PRIMARY KEY,
+                    jid_code VARCHAR(50) UNIQUE NOT NULL,
+                    stage_id INTEGER REFERENCES stages(id) ON DELETE CASCADE,
+                    status VARCHAR(20) DEFAULT 'pending',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    notes TEXT
+                )
+            """)
+            
+            # 3. Create files table
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS files (
+                    id SERIAL PRIMARY KEY,
+                    jid_id INTEGER REFERENCES jids(id) ON DELETE CASCADE,
+                    file_type VARCHAR(50) NOT NULL,
+                    filename VARCHAR(255),
+                    file_path TEXT,
+                    version INTEGER DEFAULT 1,
+                    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(jid_id, file_type)
+                )
+            """)
+            
+            # 4. Create checklist_items table
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS checklist_items (
+                    id SERIAL PRIMARY KEY,
+                    jid_id INTEGER REFERENCES jids(id) ON DELETE CASCADE,
+                    stage_id INTEGER REFERENCES stages(id) ON DELETE CASCADE,
+                    item_key VARCHAR(50) NOT NULL,
+                    item_label VARCHAR(100) NOT NULL,
+                    is_checked BOOLEAN DEFAULT FALSE,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(jid_id, stage_id, item_key)
+                )
+            """)
+            
+            # 5. Create online_links table
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS online_links (
+                    id SERIAL PRIMARY KEY,
+                    jid_id INTEGER REFERENCES jids(id) ON DELETE CASCADE,
+                    link_url TEXT,
+                    link_type VARCHAR(50) DEFAULT 'publication',
+                    verified BOOLEAN DEFAULT FALSE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(jid_id)
+                )
+            """)
+            
+            # 6. Create users table (if not exists)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id SERIAL PRIMARY KEY,
+                    username VARCHAR(50) UNIQUE NOT NULL,
+                    password_hash VARCHAR(255) NOT NULL,
+                    full_name VARCHAR(100),
+                    email VARCHAR(100),
+                    role VARCHAR(20) DEFAULT 'user',
+                    is_active BOOLEAN DEFAULT TRUE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    last_login TIMESTAMP
+                )
+            """)
+            
+            # ===== INSERT DEFAULT DATA =====
+            
+            # Insert default stages (RSVP, S100)
+            cur.execute("""
+                INSERT INTO stages (stage_name, description, sort_order)
+                VALUES 
+                    ('RSVP', 'RSVP Stage', 1),
+                    ('S100', 'S100 Stage', 2)
+                ON CONFLICT (stage_name) DO NOTHING
+            """)
+            
+            # Check if admin exists
+            cur.execute("SELECT id FROM users WHERE username = 'admin'")
+            if not cur.fetchone():
+                admin_hash = hash_password('admin123')
+                cur.execute("""
+                    INSERT INTO users (username, password_hash, full_name, role)
+                    VALUES (%s, %s, %s, %s)
+                """, ('admin', admin_hash, 'Administrator', 'admin'))
+            
+            # Check if user exists
+            cur.execute("SELECT id FROM users WHERE username = 'user'")
+            if not cur.fetchone():
+                user_hash = hash_password('user123')
+                cur.execute("""
+                    INSERT INTO users (username, password_hash, full_name, role)
+                    VALUES (%s, %s, %s, %s)
+                """, ('user', user_hash, 'Demo User', 'user'))
+            
+            conn.commit()
+            
+            # ===== VERIFY =====
+            cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'")
+            tables = cur.fetchall()
+            
+            return f"""
+            <h2>✅ Database Setup Complete!</h2>
+            <br>
+            <h3>📊 Tables Created:</h3>
+            <ul>
+                {''.join([f'<li>{t[0]}</li>' for t in tables])}
+            </ul>
+            <br>
+            <h3>🔑 Default Users:</h3>
+            <ul>
+                <li><strong>Admin:</strong> admin / admin123</li>
+                <li><strong>User:</strong> user / user123</li>
+            </ul>
+            <br>
+            <h3>📌 Stages Created:</h3>
+            <ul>
+                <li>RSVP</li>
+                <li>S100</li>
+            </ul>
+            <br>
+            <a href="/login">Go to Login →</a>
+            """
+            
+    except Exception as e:
+        conn.rollback()
+        return f"❌ Error: {e}"
+    finally:
+        conn.close()
+
 # ===== TEST ROUTES =====
 @app.route('/test-db')
 def test_db():
@@ -1761,69 +1917,6 @@ def export_jid_data(jid_id):
     finally:
         conn.close()
 
-# ===== DATABASE INITIALIZATION =====
-def create_users_table():
-    conn = get_db_connection()
-    if not conn:
-        logger.error("Cannot connect to database to create users table")
-        return
-    
-    try:
-        with conn.cursor() as cur:
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS users (
-                    id SERIAL PRIMARY KEY,
-                    username VARCHAR(50) UNIQUE NOT NULL,
-                    password_hash VARCHAR(255) NOT NULL,
-                    full_name VARCHAR(100),
-                    email VARCHAR(100),
-                    role VARCHAR(20) DEFAULT 'user',
-                    is_active BOOLEAN DEFAULT TRUE,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    last_login TIMESTAMP
-                )
-            """)
-            conn.commit()
-            logger.info("✅ Users table created successfully")
-    except Exception as e:
-        logger.error(f"Error creating users table: {e}")
-    finally:
-        conn.close()
-
-def create_default_users():
-    conn = get_db_connection()
-    if not conn:
-        return
-    
-    try:
-        with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            # Check if admin exists
-            cur.execute("SELECT id FROM users WHERE username = 'admin'")
-            if not cur.fetchone():
-                hashed_password = hash_password('admin123')
-                cur.execute("""
-                    INSERT INTO users (username, password_hash, full_name, role)
-                    VALUES (%s, %s, %s, %s)
-                """, ('admin', hashed_password, 'Administrator', 'admin'))
-                logger.info("✅ Created admin user: admin / admin123")
-            
-            # Check if user exists
-            cur.execute("SELECT id FROM users WHERE username = 'user'")
-            if not cur.fetchone():
-                hashed_password = hash_password('user123')
-                cur.execute("""
-                    INSERT INTO users (username, password_hash, full_name, role)
-                    VALUES (%s, %s, %s, %s)
-                """, ('user', hashed_password, 'Demo User', 'user'))
-                logger.info("✅ Created user: user / user123")
-            
-            conn.commit()
-            
-    except Exception as e:
-        logger.error(f"Error creating default users: {e}")
-    finally:
-        conn.close()
-
 @app.route('/api/users', methods=['GET'])
 @admin_required
 def get_users():
@@ -1898,12 +1991,6 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     logger.info(f"Starting server on port {port}")
     
-    # Create users table
-    create_users_table()
-    
-    # Create default users
-    create_default_users()
-    
     print("=" * 60)
     print("🚀 JID Management Dashboard")
     print("=" * 60)
@@ -1913,6 +2000,9 @@ if __name__ == '__main__':
     print("🔑 Demo Accounts:")
     print("   Admin: admin / admin123")
     print("   User:  user / user123")
+    print("=" * 60)
+    print("📌 First time setup:")
+    print("   Visit /setup-db to create tables")
     print("=" * 60)
     
     app.run(debug=False, host='0.0.0.0', port=port)
